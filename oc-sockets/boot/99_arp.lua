@@ -54,8 +54,8 @@ if file then
 end
 
 if hostname == nil or hostname == '' then
-    io.stderr:write("Hostname not set\n")
-    os.exit(1)
+    print("Hostname not set\n")
+    return
 end
 modem.open(1)
 send()
