@@ -37,6 +37,7 @@ clientSocket.constructor = function(modem, destAddr, port)
     connectPacket.type = TYPE_CONNECT
     connectPacket.part_count = 1
     connectPacket.first_part_id = -1
+    component.proxy(modem).open(port)
     component.proxy(modem).send(destAddr, port, serialization.serialize(connectPacket))
     client.connection = connection.constructor(modem, port, destAddr)
   end
