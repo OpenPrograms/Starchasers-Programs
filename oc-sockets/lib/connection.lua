@@ -180,7 +180,7 @@ function connection.constructor(networkCard, port, address)
     packet.type = TYPE_DISCONNECT
     packet.first_part_id = -1
     packet.part_count = 1
-    modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
+    socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
 
     event.ignore('modem_message', socket.receiveEvent)
     socket.active = false
