@@ -59,6 +59,8 @@ function connection.constructor(networkCard, port, address)
       if socket.sendMeta[packet.id] then
         if socket.sendMeta[packet.id].try > PACKET_RETRY_AMOUNT then
           socket.sendError = 'Failed to deliver packet (no response)'
+          socket.active = false
+          event.ignore('modem_message', socket.receiveEvent)
         end
         socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
         socket.sendMeta[packet.id].try = socket.sendMeta[packet.id].try + 1

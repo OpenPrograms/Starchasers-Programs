@@ -46,6 +46,9 @@ serverSocket.constructor = function(modem, port)
   server.close = function()
     server.modem.close(server.port)
     event.ignore('modem_message', server.packetEvent)
+    for socket in pairs(serve.activeConnections) do
+      socket.close()
+    end
   end
   --
   event.listen('modem_message', server.packetEvent)
