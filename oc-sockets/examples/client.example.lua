@@ -4,10 +4,12 @@ local clientLib = require('clientSocket')
 local component = require('component')
 local dns = require('dns')
 
-local client = clientLib.constructor(component.modem.address, dns.getAddress('test1'),1337)
-client.connect()
+local client = clientLib.constructor(component.modem.address, dns.getAddress('cmp1'),1337)
+if not client.connect() then
+  print('unable to connect')
+  return
+end
 print('connected')
-print(client.receive(10))
+print(client.receiveBlocking(10))
 client.send('Yup')
 client.close()
-print('closed')
