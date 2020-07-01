@@ -11,8 +11,7 @@ if file then
 end
 
 if dns.hostname == nil or dns.hostname == '' then
-  print("Hostname not set\n")
-  return
+  dns.hostname = component.computer.address
 end
 
 if not io.open('/etc/sockets_cfg.lua') == nil then
