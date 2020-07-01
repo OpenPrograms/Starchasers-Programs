@@ -23,7 +23,7 @@ end
 --FIRST PART ID	INT	8
 --DATA	BYTE[]	MAX-HEADER
 
---serialized packet overhead 128 bytes
+--serialized header max size: 126 bytes
 
 TYPE_ARP = 0x01 --not used because arp uses own port
 TYPE_ACK = 0x02
@@ -79,7 +79,7 @@ function connection.constructor(networkCard, port, address)
     local serializedData = serialization.serialize(data)
     local chunks = {}
     for i = 1, math.ceil(#serializedData / PACKET_MAX_PAYLOAD_SIZE) do
-      chunks[#chunks + 1] = data:sub(PACKET_MAX_PAYLOAD_SIZE * (i - 1) + 1, PACKET_MAX_PAYLOAD_SIZE * i)
+      chunks[#chunks + 1] = serializedData:sub(PACKET_MAX_PAYLOAD_SIZE * (i - 1) + 1, PACKET_MAX_PAYLOAD_SIZE * i)
     end
 
     local firstId = socket.nextPacketId
@@ -119,7 +119,8 @@ function connection.constructor(networkCard, port, address)
     end
     while true do
       if #socket.receiveQueue > 0 then
-        return serialization.unserialize(table.remove(socket.receiveQueue, 1))
+        local message = table.remove(socket.receiveQueue, 1)
+        return serialization.unserialize(message)
       end
       if computer.uptime() - startTime > timeout then
         return nil
@@ -128,45 +129,58 @@ function connection.constructor(networkCard, port, address)
     end
   end
   --
+  socket._acceptUnorderedPacket = function(packetId, partCount, data)
+    socket.unorderedData[packetId] = {}
+    socket.unorderedData[packetId].part_count = partCount
+    socket.unorderedData[packetId].data = data
+  end
+
+  socket._processPartialDataPacket = function(packet)
+    if not socket.partialPackets[packet.first_part_id] then
+      --create partial entry
+      socket.partialPackets[packet.first_part_id] = {}
+      socket.partialPackets[packet.first_part_id].part_count = packet.part_count
+      socket.partialPackets[packet.first_part_id].chunks = {}
+    end
+
+    --insert part of data
+    socket.partialPackets[packet.first_part_id].chunks[packet.id - packet.first_part_id + 1] = packet.data
+
+    if socket.partialPackets[packet.first_part_id].part_count == #socket.partialPackets[packet.first_part_id].chunks then
+      --put parts together
+      socket._acceptUnorderedPacket(packet.first_part_id,
+              socket.partialPackets[packet.first_part_id].part_count,
+              table.concat(socket.partialPackets[packet.first_part_id].chunks))
+      socket.partialPackets[packet.first_part_id] = nil
+    end
+  end
+
+  socket._receiveDataPacket = function(packet)
+    socket.sendACK(packet.id)
+    if packet.part_count > 1 then
+      socket._processPartialDataPacket(packet)
+    elseif packet.id == socket.nextReceivedPacketId then
+      table.insert(socket.receiveQueue, packet.data)
+      socket.nextReceivedPacketId = socket.nextReceivedPacketId + 1
+    elseif packet.id > socket.nextReceivedPacketId then
+      socket._acceptUnorderedPacket(packet.id, 1, packet.data)
+    end
+    --check unorderedData with nextReceivedPacketId
+    while socket.unorderedData[socket.nextReceivedPacketId] do
+      local theId = socket.nextReceivedPacketId
+      table.insert(socket.receiveQueue, socket.unorderedData[theId].data)
+      socket.nextReceivedPacketId = socket.nextReceivedPacketId + socket.unorderedData[theId].part_count
+      socket.unorderedData[theId] = nil
+    end
+  end
+
   socket.receiveEvent = function(_, localAddress, remoteAddress, event_port, _, packet)
     if localAddress == socket.cardAddress and
             remoteAddress == socket.targetCard and
             event_port == socket.port then
       packet = serialization.unserialize(packet)
       if packet.type == TYPE_DATA then
-        socket.sendACK(packet.id)
-        if packet.part_count > 1 then
-          if not socket.partialPackets[packet.first_part_id] then
-            --create partial entry
-            socket.partialPackets[packet.first_part_id] = {}
-            socket.partialPackets[packet.first_part_id].part_count = packet.part_count
-          end
-          if not socket.partialPackets[packet.first_part_id].chunks then
-            socket.partialPackets[packet.first_part_id].chunks = {}
-          end
-          socket.partialPackets[packet.first_part_id].chunks[packet.id - packet.first_part_id + 1] = packet.data --insert part of data
-          if socket.partialPackets[packet.first_part_id].part_count == #socket.partialPackets[packet.first_part_id].chunks then
-            --put parts together
-            socket.unorderedData[packet.first_part_id] = {}
-            socket.unorderedData[packet.first_part_id].part_count = socket.partialPackets[packet.first_part_id].part_count
-            socket.unorderedData[packet.first_part_id].data = table.concat(socket.partialPackets[packet.first_part_id].chunks)
-            socket.partialPackets[packet.first_part_id] = nil
-          end
-        elseif packet.id == socket.nextReceivedPacketId then
-          table.insert(socket.receiveQueue, packet.data)
-          socket.nextReceivedPacketId = socket.nextReceivedPacketId + 1
-        elseif packet.id > socket.nextReceivedPacketId then
-          socket.unorderedData[packet.id] = {}
-          socket.unorderedData[packet.id].part_count = 1
-          socket.unorderedData[packet.id].data = packet.data
-        end
-        --check unorderedData with nextReceivedPacketId
-        while socket.unorderedData[socket.nextReceivedPacketId] do
-          local theId = socket.nextReceivedPacketId
-          table.insert(socket.receiveQueue, socket.unorderedData[theId].data)
-          socket.nextReceivedPacketId = socket.nextReceivedPacketId + socket.unorderedData[theId].part_count
-          socket.unorderedData[theId] = nil
-        end
+        socket._receiveDataPacket(packet)
       end
       if packet.type == TYPE_ACK then
         event.cancel(socket.sendMeta[packet.id].timerId)
