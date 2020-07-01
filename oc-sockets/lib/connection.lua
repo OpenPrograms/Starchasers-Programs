@@ -26,11 +26,6 @@ end
 
 --serialized header max size: 126 bytes
 
-TYPE_ARP = 0x01 --not used because arp uses own port
-TYPE_ACK = 0x02
-TYPE_DATA = 0x03
-TYPE_CONNECT = 0x04
-
 local connection = {}
 
 --Creates socket
@@ -87,10 +82,11 @@ function connection.constructor(networkCard, port, address)
     local firstId = socket.nextPacketId
     for _, v in ipairs(chunks) do
       local packet = _packet.create(socket.nextPacketId, _packet.type.TYPE_DATA, v, #chunks, firstId)
-      socket.sendMeta[packet.id] = {}
-      socket.sendMeta[packet.id].try = 1
-      socket.sendMeta[packet.id].timerId = event.timer(PACKET_RETRY_TIME,
-              socket.createRetryTimer(packet), PACKET_RETRY_AMOUNT + 1)
+      socket.sendMeta[packet.id] = {
+        try = 1,
+        timerId = event.timer(PACKET_RETRY_TIME,
+                socket.createRetryTimer(packet), PACKET_RETRY_AMOUNT + 1)
+      }
 
       socket.nextPacketId = socket.nextPacketId + 1
 
@@ -133,9 +129,10 @@ function connection.constructor(networkCard, port, address)
   end
   --
   function socket._acceptUnorderedPacket(packetId, partCount, data)
-    socket.unorderedData[packetId] = {}
-    socket.unorderedData[packetId].part_count = partCount
-    socket.unorderedData[packetId].data = data
+    socket.unorderedData[packetId] = {
+      part_count = partCount,
+      data = data
+    }
   end
 
   socket._processPartialDataPacket = function(packet)
@@ -182,14 +179,14 @@ function connection.constructor(networkCard, port, address)
             remoteAddress == socket.targetCard and
             event_port == socket.port then
       packet = serialization.unserialize(packet)
-      if packet.type == TYPE_DATA then
+      if packet.type == _packet.type.TYPE_DATA then
         socket._receiveDataPacket(packet)
-      elseif packet.type == TYPE_ACK then
+      elseif packet.type == _packet.type.TYPE_ACK then
         event.cancel(socket.sendMeta[packet.id].timerId)
         socket.sendMeta[packet.id] = nil
-      elseif packet.type == TYPE_DISCONNECT then
+      elseif packet.type == _packet.type.TYPE_DISCONNECT then
         socket.close()
-      elseif packet.type == TYPE_CONNECT then
+      elseif packet.type == _packet.type.TYPE_CONNECT then
         socket.active = true
       end
     end

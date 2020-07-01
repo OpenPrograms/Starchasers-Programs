@@ -29,13 +29,12 @@ function serverSocket.constructor(modem, port)
   function server.packetEvent(_, localAddress, remoteAddress, event_port, _, packet)
     if event_port == server.port and localAddress == server.modemAddress then
       packet = serialization.unserialize(packet)
-      if packet.type == TYPE_CONNECT then
+      if packet.type == _packet.type.TYPE_CONNECT then
         table.insert(server.connectionRequests, remoteAddress)
       end
     end
   end
 
-  --TODO make non blocking/blocking versions
   --Waits for incoming connection and returns socket
   function server.accept()
     if #server.connectionRequests == 0 then

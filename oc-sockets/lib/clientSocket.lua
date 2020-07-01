@@ -6,12 +6,6 @@ local _packet = require('packet')
 
 local clientSocket = {}
 
-TYPE_ARP = 0x01 --not used because arp uses own port
-TYPE_ACK = 0x02
-TYPE_DATA = 0x03
-TYPE_CONNECT = 0x04 --send this to server to receive port for connection
-TYPE_DISCONNECT = 0x05 --send to close connection
-
 -- Basically wrapper for connection lol
 function clientSocket.constructor(modem, destAddr, port)
   checkArg(1, modem, 'string')
@@ -21,7 +15,6 @@ function clientSocket.constructor(modem, destAddr, port)
   local client = {}
   client.connection = {}
 
-  --TODO make non blocking/blocking versions
   function client.receiveBlocking(timeout)
     return client.connection.receiveBlocking(timeout)
   end
