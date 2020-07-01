@@ -2,6 +2,7 @@ local event = require('event')
 local component = require('component')
 local serialization = require('serialization')
 local computer = require('computer')
+local _packet = require('packet')
 
 local config
 if io.open('/etc/sockets_cfg.lua', 'r') then
@@ -85,13 +86,7 @@ function connection.constructor(networkCard, port, address)
 
     local firstId = socket.nextPacketId
     for _, v in ipairs(chunks) do
-      local packet = {}
-      packet.id = socket.nextPacketId
-      packet.type = TYPE_DATA
-      packet.part_count = #chunks
-      packet.first_part_id = firstId
-      packet.data = v
-
+      local packet = _packet.create(socket.nextPacketId, _packet.type.TYPE_DATA, v, #chunks, firstId)
       socket.sendMeta[packet.id] = {}
       socket.sendMeta[packet.id].try = 1
       socket.sendMeta[packet.id].timerId = event.timer(PACKET_RETRY_TIME,
@@ -108,12 +103,7 @@ function connection.constructor(networkCard, port, address)
   end
 
   socket.sendACK = function(id)
-    local packet = {}
-    packet.id = id
-    packet.type = TYPE_ACK
-    packet.part_count = 1
-    packet.first_part_id = id
-
+    local packet = _packet.create(id, _packet.type.TYPE_ACK)
     socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
   end
 
@@ -199,11 +189,7 @@ function connection.constructor(networkCard, port, address)
   event.listen('modem_message', socket.receiveEvent)
 
   socket.close = function()
-    local packet = {}
-    packet.id = -1
-    packet.type = TYPE_DISCONNECT
-    packet.first_part_id = -1
-    packet.part_count = 1
+    local packet = _packet.create(-1, _packet.type.TYPE_DISCONNECT)
     socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
 
     event.ignore('modem_message', socket.receiveEvent)

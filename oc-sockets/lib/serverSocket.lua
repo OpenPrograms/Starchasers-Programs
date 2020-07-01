@@ -2,6 +2,7 @@ local connection = require('connection')
 local component = require('component')
 local event = require('event')
 local serialization = require('serialization')
+local _packet = require('packet')
 
 TYPE_ARP = 0x01 --not used because arp uses own port
 TYPE_ACK = 0x02
@@ -34,6 +35,7 @@ serverSocket.constructor = function(modem, port)
     end
   end
 
+  --TODO make non blocking/blocking versions
   --Waits for incoming connection and returns socket
   server.accept = function()
     while #server.connectionRequests == 0 do
@@ -41,11 +43,7 @@ serverSocket.constructor = function(modem, port)
     end
     local address = table.remove(server.connectionRequests, 1)
     local socket =  connection.constructor(server.modemAddress, server.port, address)
-    local responsePacket = {}
-    responsePacket.id = -1
-    responsePacket.type = TYPE_CONNECT
-    responsePacket.part_count = 1
-    responsePacket.first_part_id = -1
+    local responsePacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
     socket.sendRaw(responsePacket)
     return socket
   end
