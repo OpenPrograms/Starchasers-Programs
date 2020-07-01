@@ -11,10 +11,13 @@ if io.open('/etc/sockets_cfg.lua', 'r') then
   PACKET_RETRY_TIME = config.packet_retry_time
   PACKET_RETRY_AMOUNT = config.packet_retry_amount
   PACKET_MAX_PAYLOAD_SIZE = config.max_packet_size - 128 -- 126 bytes of header size overhead + 2 bytes OC overhead
+  MAX_ACTIVE_PACKETS = config.max_active_packets
 else
   PORT_ARP = 1
   PACKET_RETRY_TIME = 4
   PACKET_RETRY_AMOUNT = 3
+  PACKET_MAX_PAYLOAD_SIZE = 8192 - 128
+  MAX_ACTIVE_PACKETS = 10
 end
 
 
@@ -44,6 +47,7 @@ function connection.constructor(networkCard, port, address)
   socket.targetCard = address
   ----------------------------
   socket.sendMeta = {} --id:number => {try:number, timerId: number}
+  socket.sendQueue = {}
   socket.nextPacketId = 1 --used to construct packet
   socket.sendError = nil --if error occurs set it here and throw it when send() is executed
   socket.receiveQueue = {} --holds raw data
@@ -62,10 +66,19 @@ function connection.constructor(networkCard, port, address)
           socket.active = false
           event.ignore('modem_message', socket.receiveEvent)
         end
-        socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
+        socket.sendRaw(packet)
         socket.sendMeta[packet.id].try = socket.sendMeta[packet.id].try + 1
       end
     end
+  end
+
+  function socket._sendInitializeMeta(packet)
+    socket.sendMeta[packet.id] = {
+      try = 1,
+      timerId = event.timer(PACKET_RETRY_TIME,
+              socket.createRetryTimer(packet), PACKET_RETRY_AMOUNT + 1)
+    }
+    socket.sendRaw(packet)
   end
 
   function socket.send(data)
@@ -82,15 +95,14 @@ function connection.constructor(networkCard, port, address)
     local firstId = socket.nextPacketId
     for _, v in ipairs(chunks) do
       local packet = _packet.create(socket.nextPacketId, _packet.type.TYPE_DATA, v, #chunks, firstId)
-      socket.sendMeta[packet.id] = {
-        try = 1,
-        timerId = event.timer(PACKET_RETRY_TIME,
-                socket.createRetryTimer(packet), PACKET_RETRY_AMOUNT + 1)
-      }
 
       socket.nextPacketId = socket.nextPacketId + 1
 
-      socket.sendRaw(packet)
+      if #socket.sendMeta >= MAX_ACTIVE_PACKETS then
+        table.insert(socket.sendMeta, packet)
+      else
+        socket._sendInitializeMeta(packet)
+      end
     end
   end
 
@@ -174,6 +186,14 @@ function connection.constructor(networkCard, port, address)
     end
   end
 
+  function socket._processAck(packet)
+    event.cancel(socket.sendMeta[packet.id].timerId)
+    socket.sendMeta[packet.id] = nil
+    if #socket.sendQueue > 0 then
+      socket._sendInitializeMeta(table.remove(socket.sendQueue, 1))
+    end
+  end
+
   function socket.receiveEvent(_, localAddress, remoteAddress, event_port, _, packet)
     if localAddress == socket.cardAddress and
             remoteAddress == socket.targetCard and
@@ -182,8 +202,7 @@ function connection.constructor(networkCard, port, address)
       if packet.type == _packet.type.TYPE_DATA then
         socket._receiveDataPacket(packet)
       elseif packet.type == _packet.type.TYPE_ACK then
-        event.cancel(socket.sendMeta[packet.id].timerId)
-        socket.sendMeta[packet.id] = nil
+        socket._processAck(packet)
       elseif packet.type == _packet.type.TYPE_DISCONNECT then
         socket.close()
       elseif packet.type == _packet.type.TYPE_CONNECT then
