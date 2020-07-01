@@ -28,6 +28,7 @@ end
 TYPE_ARP = 0x01 --not used because arp uses own port
 TYPE_ACK = 0x02
 TYPE_DATA = 0x03
+TYPE_CONNECT = 0x04
 
 local connection = {}
 
@@ -53,7 +54,7 @@ function connection.constructor(networkCard, port, address)
   socket.nextReceivedPacketId = 1
   socket.unorderedData = {} --id:number => {data:string, part_count:number} -- packets that came out of order
   socket.partialPackets = {} --first_part_id:number => {part_count:number, chunks:{data:serialized_string}} -- packets that came in parts
-  socket.active = true
+  socket.active = false
 
   socket.createRetryTimer = function(packet)
     return function()
@@ -98,8 +99,12 @@ function connection.constructor(networkCard, port, address)
 
       socket.nextPacketId = socket.nextPacketId + 1
 
-      socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
+      socket.sendRaw(packet)
     end
+  end
+
+  function socket.sendRaw(packet)
+    socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
   end
 
   socket.sendACK = function(id)
@@ -181,13 +186,13 @@ function connection.constructor(networkCard, port, address)
       packet = serialization.unserialize(packet)
       if packet.type == TYPE_DATA then
         socket._receiveDataPacket(packet)
-      end
-      if packet.type == TYPE_ACK then
+      elseif packet.type == TYPE_ACK then
         event.cancel(socket.sendMeta[packet.id].timerId)
         socket.sendMeta[packet.id] = nil
-      end
-      if packet.type == TYPE_DISCONNECT then
+      elseif packet.type == TYPE_DISCONNECT then
         socket.close()
+      elseif packet.type == TYPE_CONNECT then
+        socket.active = true
       end
     end
   end

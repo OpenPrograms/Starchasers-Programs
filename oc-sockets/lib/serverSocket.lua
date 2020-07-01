@@ -40,7 +40,14 @@ serverSocket.constructor = function(modem, port)
       os.sleep(0.05)
     end
     local address = table.remove(server.connectionRequests, 1)
-    return connection.constructor(server.modemAddress, server.port, address)
+    local socket =  connection.constructor(server.modemAddress, server.port, address)
+    local responsePacket = {}
+    responsePacket.id = -1
+    responsePacket.type = TYPE_CONNECT
+    responsePacket.part_count = 1
+    responsePacket.first_part_id = -1
+    socket.sendRaw(responsePacket)
+    return socket
   end
 
   server.close = function()
