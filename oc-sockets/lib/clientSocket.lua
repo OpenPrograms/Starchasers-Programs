@@ -22,9 +22,14 @@ function clientSocket.constructor(modem, destAddr, port)
   client.connection = {}
 
   --TODO make non blocking/blocking versions
-  function client.receive(timeout)
-    return client.connection.receive(timeout)
+  function client.receiveBlocking(timeout)
+    return client.connection.receiveBlocking(timeout)
   end
+
+  function client.receive()
+    return client.connection.receive()
+  end
+
   function client.send(data)
     client.connection.send(data)
   end
@@ -34,6 +39,7 @@ function clientSocket.constructor(modem, destAddr, port)
   function client.isOpen()
     return client.connection.active
   end
+
   function client.connect(timeout)
     local connectPacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
     component.proxy(modem).open(port)

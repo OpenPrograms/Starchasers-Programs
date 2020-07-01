@@ -16,7 +16,7 @@ local serverSocket = {}
 --@param modem address of modem to start listening on]
 --@param port
 --@return server instance
-serverSocket.constructor = function(modem, port)
+function serverSocket.constructor(modem, port)
   checkArg(1, modem, 'string')
   checkArg(2, port, 'number')
   local server = {}
@@ -26,7 +26,7 @@ serverSocket.constructor = function(modem, port)
   server.activeConnections = {} -- address:string => connection
   server.connectionRequests = {} -- src_address:string
 
-  server.packetEvent = function(_, localAddress, remoteAddress, event_port, _, packet)
+  function server.packetEvent(_, localAddress, remoteAddress, event_port, _, packet)
     if event_port == server.port and localAddress == server.modemAddress then
       packet = serialization.unserialize(packet)
       if packet.type == TYPE_CONNECT then
@@ -37,7 +37,19 @@ serverSocket.constructor = function(modem, port)
 
   --TODO make non blocking/blocking versions
   --Waits for incoming connection and returns socket
-  server.accept = function()
+  function server.accept()
+    if #server.connectionRequests == 0 then
+      return nil
+    end
+
+    local address = table.remove(server.connectionRequests, 1)
+    local socket =  connection.constructor(server.modemAddress, server.port, address)
+    local responsePacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
+    socket.sendRaw(responsePacket)
+    return socket
+  end
+
+  function server.acceptBlocking()
     while #server.connectionRequests == 0 do
       os.sleep(0.05)
     end
@@ -48,7 +60,7 @@ serverSocket.constructor = function(modem, port)
     return socket
   end
 
-  server.close = function()
+  function server.close()
     server.modem.close(server.port)
     event.ignore('modem_message', server.packetEvent)
     for socket in pairs(server.activeConnections) do

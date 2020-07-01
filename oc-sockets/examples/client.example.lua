@@ -10,6 +10,6 @@ if not client.connect() then
   return
 end
 print('connected')
-print(client.receive(10))
+print(client.receiveBlocking(10))
 client.send('Yup')
 client.close()

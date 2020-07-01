@@ -57,7 +57,7 @@ function connection.constructor(networkCard, port, address)
   socket.partialPackets = {} --first_part_id:number => {part_count:number, chunks:{data:serialized_string}} -- packets that came in parts
   socket.active = false
 
-  socket.createRetryTimer = function(packet)
+  function socket.createRetryTimer(packet)
     return function()
       --resend packet if meta != null
       --throw exception after 3rd try
@@ -73,7 +73,7 @@ function connection.constructor(networkCard, port, address)
     end
   end
 
-  socket.send = function(data)
+  function socket.send(data)
     if socket.sendError then
       error(socket.sendError)
     end
@@ -102,12 +102,20 @@ function connection.constructor(networkCard, port, address)
     socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
   end
 
-  socket.sendACK = function(id)
+  function socket.sendACK(id)
     local packet = _packet.create(id, _packet.type.TYPE_ACK)
     socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
   end
 
-  socket.receive = function(timeout)
+  function socket.receive()
+    if #socket.receiveQueue == 0 then
+      return nil
+    end
+    local message = table.remove(socket.receiveQueue, 1)
+    return serialization.unserialize(message)
+  end
+
+  function socket.receiveBlocking(timeout)
     local startTime = computer.uptime()
     if not timeout then
       timeout = math.huge
@@ -124,7 +132,7 @@ function connection.constructor(networkCard, port, address)
     end
   end
   --
-  socket._acceptUnorderedPacket = function(packetId, partCount, data)
+  function socket._acceptUnorderedPacket(packetId, partCount, data)
     socket.unorderedData[packetId] = {}
     socket.unorderedData[packetId].part_count = partCount
     socket.unorderedData[packetId].data = data
@@ -150,7 +158,7 @@ function connection.constructor(networkCard, port, address)
     end
   end
 
-  socket._receiveDataPacket = function(packet)
+  function socket._receiveDataPacket(packet)
     socket.sendACK(packet.id)
     if packet.part_count > 1 then
       socket._processPartialDataPacket(packet)
@@ -169,7 +177,7 @@ function connection.constructor(networkCard, port, address)
     end
   end
 
-  socket.receiveEvent = function(_, localAddress, remoteAddress, event_port, _, packet)
+  function socket.receiveEvent(_, localAddress, remoteAddress, event_port, _, packet)
     if localAddress == socket.cardAddress and
             remoteAddress == socket.targetCard and
             event_port == socket.port then
