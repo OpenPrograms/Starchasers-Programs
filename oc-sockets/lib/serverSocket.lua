@@ -40,20 +40,20 @@ serverSocket.constructor = function(modem, port)
       os.sleep(0.05)
     end
     local address = table.remove(server.connectionRequests, 1)
-    return connection.constructor(server.modemAddress, port, address)
+    return connection.constructor(server.modemAddress, server.port, address)
   end
 
   server.close = function()
     server.modem.close(server.port)
     event.ignore('modem_message', server.packetEvent)
-    for socket in pairs(serve.activeConnections) do
+    for socket in pairs(server.activeConnections) do
       socket.close()
     end
   end
   --
   event.listen('modem_message', server.packetEvent)
 
-  if not server.modem.open(port) then
+  if not server.modem.open(server.port) then
     error('port already in use')
   end
 

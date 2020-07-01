@@ -9,6 +9,7 @@ if io.open('/etc/sockets_cfg.lua', 'r') then
   PORT_ARP = config.arp_port
   PACKET_RETRY_TIME = config.packet_retry_time
   PACKET_RETRY_AMOUNT = config.packet_retry_amount
+  PACKET_MAX_PAYLOAD_SIZE = config.max_packet_size - 128 -- 126 bytes of header size overhead + 2 bytes OC overhead
 else
   PORT_ARP = 1
   PACKET_RETRY_TIME = 4
@@ -21,6 +22,8 @@ end
 --PART COUNT	INT	8
 --FIRST PART ID	INT	8
 --DATA	BYTE[]	MAX-HEADER
+
+--serialized packet overhead 128 bytes
 
 TYPE_ARP = 0x01 --not used because arp uses own port
 TYPE_ACK = 0x02
@@ -75,8 +78,8 @@ function connection.constructor(networkCard, port, address)
 
     local serializedData = serialization.serialize(data)
     local chunks = {}
-    for i = 1, math.ceil(#serializedData / 8000) do
-      chunks[#chunks + 1] = data:sub(8000 * (i - 1) + 1, 8000 * i)
+    for i = 1, math.ceil(#serializedData / PACKET_MAX_PAYLOAD_SIZE) do
+      chunks[#chunks + 1] = data:sub(PACKET_MAX_PAYLOAD_SIZE * (i - 1) + 1, PACKET_MAX_PAYLOAD_SIZE * i)
     end
 
     local firstId = socket.nextPacketId
@@ -116,7 +119,7 @@ function connection.constructor(networkCard, port, address)
     end
     while true do
       if #socket.receiveQueue > 0 then
-        return table.remove(socket.receiveQueue, 1)
+        return serialization.unserialize(table.remove(socket.receiveQueue, 1))
       end
       if computer.uptime() - startTime > timeout then
         return nil
@@ -155,7 +158,7 @@ function connection.constructor(networkCard, port, address)
         elseif packet.id > socket.nextReceivedPacketId then
           socket.unorderedData[packet.id] = {}
           socket.unorderedData[packet.id].part_count = 1
-          socket.unorderedData[packet.id].data = serialization.unserialize(packet.data)
+          socket.unorderedData[packet.id].data = packet.data
         end
         --check unorderedData with nextReceivedPacketId
         while socket.unorderedData[socket.nextReceivedPacketId] do
