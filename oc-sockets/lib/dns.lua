@@ -56,7 +56,7 @@ end
 function dns._removeExpired()
   local now = computer.uptime()
   for k, v in pairs(dns.hostsByName) do
-    if v.time < now - 10 then
+    if v.time < now - 65 then
       dns.hostsByName[k] = nil
       dns.hostsByAddress[v.address] = nil
     end

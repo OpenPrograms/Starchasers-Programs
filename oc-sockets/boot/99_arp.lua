@@ -34,5 +34,5 @@ end
 dns._modem.open(dns.PORT_ARP)
 dns.broadcastHostname()
 event.listen('modem_message', receive)
-sendTimerId = event.timer(10, dns.broadcastHostname, math.huge)
-expireTimerId = event.timer(15, dns._removeExpired, math.huge)
+sendTimerId = event.timer(60, dns.broadcastHostname, math.huge)
+expireTimerId = event.timer(30, dns._removeExpired, math.huge)
