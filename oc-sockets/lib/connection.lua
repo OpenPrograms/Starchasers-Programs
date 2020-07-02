@@ -143,8 +143,7 @@ function connection.constructor(networkCard, port, address)
     end
     while true do
       if #socket.receiveQueue > 0 then
-        local message = table.remove(socket.receiveQueue, 1)
-        return message
+        return table.remove(socket.receiveQueue, 1)
       end
       if computer.uptime() - startTime > timeout then
         return nil
@@ -227,10 +226,10 @@ function connection.constructor(networkCard, port, address)
                                packetFirstPartId,
                                packetFlags,
                                packetData)
-    local packet = _packet.create(packetId, packetType, packetData, packetFlags, packetPartCount, packetFirstPartId)
     if localAddress == socket.cardAddress and
             remoteAddress == socket.targetCard and
             event_port == socket.port then
+      local packet = _packet.create(packetId, packetType, packetData, packetFlags, packetPartCount, packetFirstPartId)
       if packet.type == _packet.type.TYPE_DATA then
         socket._receiveDataPacket(packet)
       elseif packet.type == _packet.type.TYPE_ACK then
