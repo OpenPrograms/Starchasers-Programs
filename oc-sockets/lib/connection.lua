@@ -85,8 +85,14 @@ function connection.constructor(networkCard, port, address)
     if socket.sendError then
       error(socket.sendError)
     end
+    local isString = type(data) == 'string'
 
-    local serializedData = serialization.serialize(data)
+    local serializedData = data
+    local flag = 0
+    if not isString then
+      serializedData = serialization.serialize(serializedData)
+      flag = 1
+    end
     local chunks = {}
     for i = 1, math.ceil(#serializedData / PACKET_MAX_PAYLOAD_SIZE) do
       chunks[#chunks + 1] = serializedData:sub(PACKET_MAX_PAYLOAD_SIZE * (i - 1) + 1, PACKET_MAX_PAYLOAD_SIZE * i)
@@ -94,7 +100,7 @@ function connection.constructor(networkCard, port, address)
 
     local firstId = socket.nextPacketId
     for _, v in ipairs(chunks) do
-      local packet = _packet.create(socket.nextPacketId, _packet.type.TYPE_DATA, v, #chunks, firstId)
+      local packet = _packet.create(socket.nextPacketId, _packet.type.TYPE_DATA, v, flag, #chunks, firstId)
 
       socket.nextPacketId = socket.nextPacketId + 1
 
@@ -107,12 +113,19 @@ function connection.constructor(networkCard, port, address)
   end
 
   function socket.sendRaw(packet)
-    socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
+    socket.modem.send(socket.targetCard,
+            socket.port,
+            packet.id,
+            packet.type,
+            packet.part_count,
+            packet.first_part_id,
+            packet.flags,
+            packet.data)
   end
 
   function socket.sendACK(id)
     local packet = _packet.create(id, _packet.type.TYPE_ACK)
-    socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
+    socket.sendRaw(packet)
   end
 
   function socket.receive()
@@ -120,7 +133,7 @@ function connection.constructor(networkCard, port, address)
       return nil
     end
     local message = table.remove(socket.receiveQueue, 1)
-    return serialization.unserialize(message)
+    return message
   end
 
   function socket.receiveBlocking(timeout)
@@ -130,8 +143,7 @@ function connection.constructor(networkCard, port, address)
     end
     while true do
       if #socket.receiveQueue > 0 then
-        local message = table.remove(socket.receiveQueue, 1)
-        return serialization.unserialize(message)
+        return table.remove(socket.receiveQueue, 1)
       end
       if computer.uptime() - startTime > timeout then
         return nil
@@ -160,9 +172,13 @@ function connection.constructor(networkCard, port, address)
 
     if socket.partialPackets[packet.first_part_id].part_count == #socket.partialPackets[packet.first_part_id].chunks then
       --put parts together
+      local unserializedData = table.concat(socket.partialPackets[packet.first_part_id].chunks)
+      if packet.flags == 1 then
+        unserializedData = serialization.unserialize(unserializedData)
+      end
       socket._acceptUnorderedPacket(packet.first_part_id,
               socket.partialPackets[packet.first_part_id].part_count,
-              table.concat(socket.partialPackets[packet.first_part_id].chunks))
+              unserializedData)
       socket.partialPackets[packet.first_part_id] = nil
     end
   end
@@ -172,10 +188,19 @@ function connection.constructor(networkCard, port, address)
     if packet.part_count > 1 then
       socket._processPartialDataPacket(packet)
     elseif packet.id == socket.nextReceivedPacketId then
-      table.insert(socket.receiveQueue, packet.data)
+      if packet.flags == 1 then
+        table.insert(socket.receiveQueue, serialization.unserialize(packet.data))
+      else
+        table.insert(socket.receiveQueue, packet.data)
+      end
+
       socket.nextReceivedPacketId = socket.nextReceivedPacketId + 1
     elseif packet.id > socket.nextReceivedPacketId then
-      socket._acceptUnorderedPacket(packet.id, 1, packet.data)
+      if packet.flags == 1 then
+        socket._acceptUnorderedPacket(packet.id, 1, serialization.unserialize(packet.data))
+      else
+        socket._acceptUnorderedPacket(packet.id, 1, packet.data)
+      end
     end
     --check unorderedData with nextReceivedPacketId
     while socket.unorderedData[socket.nextReceivedPacketId] do
@@ -194,11 +219,17 @@ function connection.constructor(networkCard, port, address)
     end
   end
 
-  function socket.receiveEvent(_, localAddress, remoteAddress, event_port, _, packet)
+  function socket.receiveEvent(_, localAddress, remoteAddress, event_port, _,
+                               packetId,
+                               packetType,
+                               packetPartCount,
+                               packetFirstPartId,
+                               packetFlags,
+                               packetData)
     if localAddress == socket.cardAddress and
             remoteAddress == socket.targetCard and
             event_port == socket.port then
-      packet = serialization.unserialize(packet)
+      local packet = _packet.create(packetId, packetType, packetData, packetFlags, packetPartCount, packetFirstPartId)
       if packet.type == _packet.type.TYPE_DATA then
         socket._receiveDataPacket(packet)
       elseif packet.type == _packet.type.TYPE_ACK then
@@ -214,7 +245,7 @@ function connection.constructor(networkCard, port, address)
 
   socket.close = function()
     local packet = _packet.create(-1, _packet.type.TYPE_DISCONNECT)
-    socket.modem.send(socket.targetCard, socket.port, serialization.serialize(packet))
+    socket.sendRaw(packet)
 
     event.ignore('modem_message', socket.receiveEvent)
     socket.active = false

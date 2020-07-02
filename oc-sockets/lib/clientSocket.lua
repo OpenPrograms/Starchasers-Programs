@@ -36,7 +36,13 @@ function clientSocket.constructor(modem, destAddr, port)
   function client.connect(timeout)
     local connectPacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
     component.proxy(modem).open(port)
-    component.proxy(modem).send(destAddr, port, serialization.serialize(connectPacket))
+    component.proxy(modem).send(destAddr, port,
+            connectPacket.id,
+            connectPacket.type,
+            connectPacket.part_count,
+            connectPacket.first_part_id,
+            connectPacket.flags,
+            connectPacket.data)
     client.connection = connection.constructor(modem, port, destAddr)
     if not timeout then
       timeout = 5
