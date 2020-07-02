@@ -9,15 +9,17 @@ packet.type = {
   TYPE_DISCONNECT = 0x06 --send to close connection
 }
 
-function packet.create(id, type, data, partCount, firstPartId)
+function packet.create(id, type, data, flags, partCount, firstPartId)
   partCount = partCount or 1
   firstPartId = firstPartId or id
-  data = data or {}
+  data = data or ''
+  flags = flags or 0
   return {
     id = id,
     type = type,
     part_count = partCount,
     first_part_id = firstPartId,
+    flags = flags,
     data = data
   }
 end

@@ -26,10 +26,9 @@ function serverSocket.constructor(modem, port)
   server.activeConnections = {} -- address:string => connection
   server.connectionRequests = {} -- src_address:string
 
-  function server.packetEvent(_, localAddress, remoteAddress, event_port, _, packet)
+  function server.packetEvent(_, localAddress, remoteAddress, event_port, _, id, type)
     if event_port == server.port and localAddress == server.modemAddress then
-      packet = serialization.unserialize(packet)
-      if packet.type == _packet.type.TYPE_CONNECT then
+      if type == _packet.type.TYPE_CONNECT then
         table.insert(server.connectionRequests, remoteAddress)
       end
     end
