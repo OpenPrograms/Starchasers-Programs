@@ -44,6 +44,7 @@ function serverSocket.constructor(modem, port)
     local socket =  connection.constructor(server.modemAddress, server.port, address)
     local responsePacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
     socket.sendRaw(responsePacket)
+    socket.active = true
     return socket
   end
 
@@ -55,6 +56,7 @@ function serverSocket.constructor(modem, port)
     local socket =  connection.constructor(server.modemAddress, server.port, address)
     local responsePacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
     socket.sendRaw(responsePacket)
+    socket.active = true
     return socket
   end
 
