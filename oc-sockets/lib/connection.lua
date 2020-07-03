@@ -104,7 +104,7 @@ function connection.constructor(networkCard, port, address)
 
     local firstId = socket.nextPacketId
     for _, v in ipairs(chunks) do
-      local packet = _packet.create(socket.nextPacketId, _packet.type.TYPE_DATA, v, flag, #chunks, firstId)
+      local packet = _packet.create(socket.nextPacketId, _packet.type.DATA, v, flag, #chunks, firstId)
 
       socket.nextPacketId = socket.nextPacketId + 1
 
@@ -128,7 +128,7 @@ function connection.constructor(networkCard, port, address)
   end
 
   function socket.sendACK(id)
-    local packet = _packet.create(id, _packet.type.TYPE_ACK)
+    local packet = _packet.create(id, _packet.type.ACK)
     socket.sendRaw(packet)
   end
 
@@ -227,7 +227,7 @@ function connection.constructor(networkCard, port, address)
     if computer.uptime() - socket.lastKeepAlive > 3 * KEEP_ALIVE_INTERVAL then
       socket.close()
     end
-    socket.sendRaw(_packet.create(-1, _packet.type.TYPE_KEEP_ALIVE))
+    socket.sendRaw(_packet.create(-1, _packet.type.KEEP_ALIVE))
   end
 
   function socket.receiveEvent(_, localAddress, remoteAddress, event_port, _,
@@ -241,15 +241,15 @@ function connection.constructor(networkCard, port, address)
             remoteAddress == socket.targetCard and
             event_port == socket.port then
       local packet = _packet.create(packetId, packetType, packetData, packetFlags, packetPartCount, packetFirstPartId)
-      if packet.type == _packet.type.TYPE_DATA then
+      if packet.type == _packet.type.DATA then
         socket._receiveDataPacket(packet)
-      elseif packet.type == _packet.type.TYPE_ACK then
+      elseif packet.type == _packet.type.ACK then
         socket._processAck(packet)
-      elseif packet.type == _packet.type.TYPE_DISCONNECT then
+      elseif packet.type == _packet.type.DISCONNECT then
         socket.close()
-      elseif packet.type == _packet.type.TYPE_CONNECT then
+      elseif packet.type == _packet.type.CONNECT then
         socket.active = true
-      elseif packet.type == _packet.type.TYPE_KEEP_ALIVE then
+      elseif packet.type == _packet.type.KEEP_ALIVE then
         socket.lastKeepAlive = computer.uptime()
       end
     end
@@ -259,7 +259,7 @@ function connection.constructor(networkCard, port, address)
   socket.keepAliveTimer = event.timer(KEEP_ALIVE_INTERVAL, socket._keepAlive, math.huge)
 
   socket.close = function()
-    local packet = _packet.create(-1, _packet.type.TYPE_DISCONNECT)
+    local packet = _packet.create(-1, _packet.type.DISCONNECT)
     socket.sendRaw(packet)
 
     event.ignore('modem_message', socket.receiveEvent)

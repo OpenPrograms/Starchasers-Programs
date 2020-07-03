@@ -40,12 +40,12 @@ function dns.getHostname(address)
 end
 
 function dns.broadcastHostname()
-  dns._modem.broadcast(dns.PORT_ARP, packet.type.TYPE_ARP_RESPONSE, dns.hostname)
+  dns._modem.broadcast(dns.PORT_ARP, packet.type.ARP_RESPONSE, dns.hostname)
 end
 
 function dns.askHostname(hostname, timeout)
   timeout = timeout or 2
-  dns._modem.broadcast(dns.PORT_ARP, packet.type.TYPE_ARP_QUESTION, hostname)
+  dns._modem.broadcast(dns.PORT_ARP, packet.type.ARP_QUESTION, hostname)
 
   local startTime = computer.uptime()
   while not dns.hostsByName[hostname] and computer.uptime() - startTime < timeout do

@@ -28,7 +28,7 @@ function serverSocket.constructor(modem, port)
 
   function server.packetEvent(_, localAddress, remoteAddress, event_port, _, id, type)
     if event_port == server.port and localAddress == server.modemAddress then
-      if type == _packet.type.TYPE_CONNECT then
+      if type == _packet.type.CONNECT then
         table.insert(server.connectionRequests, remoteAddress)
       end
     end
@@ -42,7 +42,7 @@ function serverSocket.constructor(modem, port)
 
     local address = table.remove(server.connectionRequests, 1)
     local socket =  connection.constructor(server.modemAddress, server.port, address)
-    local responsePacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
+    local responsePacket = _packet.create(-1, _packet.type.CONNECT)
     socket.sendRaw(responsePacket)
     socket.active = true
     return socket
@@ -54,7 +54,7 @@ function serverSocket.constructor(modem, port)
     end
     local address = table.remove(server.connectionRequests, 1)
     local socket =  connection.constructor(server.modemAddress, server.port, address)
-    local responsePacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
+    local responsePacket = _packet.create(-1, _packet.type.CONNECT)
     socket.sendRaw(responsePacket)
     socket.active = true
     return socket
