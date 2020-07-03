@@ -12,12 +12,14 @@ if io.open('/etc/sockets_cfg.lua', 'r') then
   PACKET_RETRY_AMOUNT = config.packet_retry_amount
   PACKET_MAX_PAYLOAD_SIZE = config.max_packet_size - 128 -- 126 bytes of header size overhead + 2 bytes OC overhead
   MAX_ACTIVE_PACKETS = config.max_active_packets
+  KEEP_ALIVE_INTERVAL = config.keep_alive_interval
 else
   PORT_ARP = 1
   PACKET_RETRY_TIME = 4
   PACKET_RETRY_AMOUNT = 3
   PACKET_MAX_PAYLOAD_SIZE = 8192 - 128
   MAX_ACTIVE_PACKETS = 10
+  KEEP_ALIVE_INTERVAL = 20
 end
 
 
@@ -55,6 +57,8 @@ function connection.constructor(networkCard, port, address)
   socket.unorderedData = {} --id:number => {data:string, part_count:number} -- packets that came out of order
   socket.partialPackets = {} --first_part_id:number => {part_count:number, chunks:{data:serialized_string}} -- packets that came in parts
   socket.active = false
+  socket.lastKeepAlive = computer.uptime()
+  socket.keepAliveTimer = nil
 
   function socket.createRetryTimer(packet)
     return function()
@@ -100,7 +104,7 @@ function connection.constructor(networkCard, port, address)
 
     local firstId = socket.nextPacketId
     for _, v in ipairs(chunks) do
-      local packet = _packet.create(socket.nextPacketId, _packet.type.TYPE_DATA, v, flag, #chunks, firstId)
+      local packet = _packet.create(socket.nextPacketId, _packet.type.DATA, v, flag, #chunks, firstId)
 
       socket.nextPacketId = socket.nextPacketId + 1
 
@@ -124,7 +128,7 @@ function connection.constructor(networkCard, port, address)
   end
 
   function socket.sendACK(id)
-    local packet = _packet.create(id, _packet.type.TYPE_ACK)
+    local packet = _packet.create(id, _packet.type.ACK)
     socket.sendRaw(packet)
   end
 
@@ -145,7 +149,7 @@ function connection.constructor(networkCard, port, address)
       if #socket.receiveQueue > 0 then
         return table.remove(socket.receiveQueue, 1)
       end
-      if computer.uptime() - startTime > timeout then
+      if computer.uptime() - startTime > timeout or not socket.active then
         return nil
       end
       os.sleep(0.1)
@@ -219,6 +223,13 @@ function connection.constructor(networkCard, port, address)
     end
   end
 
+  function socket._keepAlive()
+    if computer.uptime() - socket.lastKeepAlive > 3 * KEEP_ALIVE_INTERVAL then
+      socket.close()
+    end
+    socket.sendRaw(_packet.create(-1, _packet.type.KEEP_ALIVE))
+  end
+
   function socket.receiveEvent(_, localAddress, remoteAddress, event_port, _,
                                packetId,
                                packetType,
@@ -230,24 +241,32 @@ function connection.constructor(networkCard, port, address)
             remoteAddress == socket.targetCard and
             event_port == socket.port then
       local packet = _packet.create(packetId, packetType, packetData, packetFlags, packetPartCount, packetFirstPartId)
-      if packet.type == _packet.type.TYPE_DATA then
+      if packet.type == _packet.type.DATA then
         socket._receiveDataPacket(packet)
-      elseif packet.type == _packet.type.TYPE_ACK then
+      elseif packet.type == _packet.type.ACK then
         socket._processAck(packet)
-      elseif packet.type == _packet.type.TYPE_DISCONNECT then
+      elseif packet.type == _packet.type.DISCONNECT then
         socket.close()
-      elseif packet.type == _packet.type.TYPE_CONNECT then
+      elseif packet.type == _packet.type.CONNECT then
         socket.active = true
+      elseif packet.type == _packet.type.KEEP_ALIVE then
+        socket.lastKeepAlive = computer.uptime()
       end
     end
   end
+
   event.listen('modem_message', socket.receiveEvent)
+  socket.keepAliveTimer = event.timer(KEEP_ALIVE_INTERVAL, socket._keepAlive, math.huge)
 
   socket.close = function()
-    local packet = _packet.create(-1, _packet.type.TYPE_DISCONNECT)
+    local packet = _packet.create(-1, _packet.type.DISCONNECT)
     socket.sendRaw(packet)
 
     event.ignore('modem_message', socket.receiveEvent)
+    if socket.keepAliveTimer then
+      event.cancel(socket.keepAliveTimer)
+      socket.keepAliveTimer = nil
+    end
     socket.active = false
   end
 

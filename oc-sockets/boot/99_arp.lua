@@ -18,12 +18,12 @@ local hostname
 
 local function receive(_, _, remoteAddress, port, _, type, msg)
   if port == dns.PORT_ARP then
-    if type == _packet.type.TYPE_ARP_RESPONSE and msg then
+    if type == _packet.type.ARP_RESPONSE and msg then
       local now = computer.uptime()
       dns.hostsByName[msg] = { address = remoteAddress, time = now }
       dns.hostsByAddress[remoteAddress] = { hostname = msg, time = now }
-    elseif type == _packet.type.TYPE_ARP_QUESTION and msg and msg == dns.hostname then
-      dns._modem.send(remoteAddress, dns.PORT_ARP, _packet.type.TYPE_ARP_RESPONSE, dns.hostname)
+    elseif type == _packet.type.ARP_QUESTION and msg and msg == dns.hostname then
+      dns._modem.send(remoteAddress, dns.PORT_ARP, _packet.type.ARP_RESPONSE, dns.hostname)
     end
   end
 end

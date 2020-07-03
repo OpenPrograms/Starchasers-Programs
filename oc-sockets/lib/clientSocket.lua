@@ -34,7 +34,7 @@ function clientSocket.constructor(modem, destAddr, port)
   end
 
   function client.connect(timeout)
-    local connectPacket = _packet.create(-1, _packet.type.TYPE_CONNECT)
+    local connectPacket = _packet.create(-1, _packet.type.CONNECT)
     component.proxy(modem).open(port)
     component.proxy(modem).send(destAddr, port,
             connectPacket.id,

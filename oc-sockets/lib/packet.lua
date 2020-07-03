@@ -1,12 +1,13 @@
 local packet = {}
 
 packet.type = {
-  TYPE_ARP_QUESTION = 0x01,
-  TYPE_ARP_RESPONSE = 0x02,
-  TYPE_ACK = 0x03,
-  TYPE_DATA = 0x04,
-  TYPE_CONNECT = 0x05, --send this to server to receive port for connection
-  TYPE_DISCONNECT = 0x06 --send to close connection
+  ARP_QUESTION = 0x01,
+  ARP_RESPONSE = 0x02,
+  ACK = 0x03,
+  DATA = 0x04,
+  CONNECT = 0x05, --send this to server to receive port for connection
+  DISCONNECT = 0x06, --send to close connection
+  KEEP_ALIVE = 0x07
 }
 
 function packet.create(id, type, data, flags, partCount, firstPartId)
