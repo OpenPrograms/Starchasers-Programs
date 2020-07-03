@@ -223,7 +223,7 @@ function connection.constructor(networkCard, port, address)
     end
   end
 
-  function socket.keepAlive()
+  function socket._keepAlive()
     if computer.uptime() - socket.lastKeepAlive > 3 * KEEP_ALIVE_INTERVAL then
       socket.close()
     end
@@ -256,7 +256,7 @@ function connection.constructor(networkCard, port, address)
   end
 
   event.listen('modem_message', socket.receiveEvent)
-  socket.keepAliveTimer = event.timer(KEEP_ALIVE_INTERVAL, socket.keepAlive, math.huge)
+  socket.keepAliveTimer = event.timer(KEEP_ALIVE_INTERVAL, socket._keepAlive, math.huge)
 
   socket.close = function()
     local packet = _packet.create(-1, _packet.type.TYPE_DISCONNECT)
