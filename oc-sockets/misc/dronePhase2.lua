@@ -17,10 +17,6 @@ local env = {
   event = event,
 }
 
-local function debug(string)
-  env.modem.broadcast(802, string)
-end
-
 function env.sleep(time)
   local startTime = uptime()
   while uptime() - startTime < time do
@@ -129,7 +125,10 @@ function dns.getAddress(hostname, shouldAsk)
   if not dns.hostsByName[hostname] and shouldAsk then
     dns.askHostname(hostname)
   end
-  return dns.hostsByName[hostname].address
+  if dns.hostsByName[hostname] then
+    return dns.hostsByName[hostname].address
+  end
+  return nil
 end
 
 function dns.enable()
@@ -400,6 +399,17 @@ function connection.constructor(port, address)
   --return socket
 end
 
+local function split(inputstr, sep)
+  sep = sep or '%s'
+  local t = {}
+  for field, s in string.gmatch(inputstr, "([^" .. sep .. "]*)(" .. sep .. "?)") do
+    table.insert(t, field)
+    if s == "" then
+      return t
+    end
+  end
+end
+
 local function safeRun(fun, socket, err)
   local res = pcall(fun, env)
   if not res then
@@ -413,14 +423,31 @@ local socket
 local result
 local program
 debug('Phase 2 started')
-dns.enable()
-local address = dns.getAddress('droneServer')
-dns.disable()
+local hostname, port = table.unpack(split(component.proxy(component.list('eeprom')()).getData(), ':'))
+debug('hostname: ' .. hostname)
+debug('port: ' .. port)
+if not hostname or not port then
+  error('Phase 2: Hostname and port not provided')
+end
+local address
+
+
+
 local function loop()
+  if not address then
+    dns.enable()
+    address = dns.getAddress(hostname)
+    dns.disable()
+    if not address then
+      env.sleep(10)
+      return
+    end
+  end
+
   if (not socket or not socket.active) then
-    socket = connection.constructor(2137, address)
+    socket = connection.constructor(tonumber(port), address)
     if not socket then
-      debug('Phase 2: no connection')
+      debug('Phase 2: no connectionqwe')
       env.sleep(10)
       return
     end
@@ -453,7 +480,6 @@ local function loop()
     return
   end
 end
-
 
 while true do
   loop()

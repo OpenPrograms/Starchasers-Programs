@@ -32,7 +32,10 @@ function dns.getAddress(hostname, shouldAsk)
   if not dns.hostsByName[hostname] and shouldAsk then
     dns.askHostname(hostname)
   end
-  return dns.hostsByName[hostname].address
+  if dns.hostsByName[hostname] then
+    return dns.hostsByName[hostname].address
+  end
+  return nil
 end
 
 function dns.getHostname(address)
