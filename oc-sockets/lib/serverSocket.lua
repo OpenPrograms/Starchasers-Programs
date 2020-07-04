@@ -26,6 +26,17 @@ function serverSocket.constructor(modem, port)
   server.activeConnections = {} -- address:string => connection
   server.connectionRequests = {} -- src_address:string
 
+  function server._addActiveConnection(conn, address, connPort)
+    if not server.activeConnections[address] then
+      server.activeConnections[address] = {}
+    end
+
+    if server.activeConnections[address][connPort] then
+      server.activeConnections[address][connPort].closeSilently()
+      server.activeConnections[address][connPort] = conn
+    end
+  end
+
   function server.packetEvent(_, localAddress, remoteAddress, event_port, _, id, type)
     if event_port == server.port and localAddress == server.modemAddress then
       if type == _packet.type.CONNECT then
@@ -41,10 +52,11 @@ function serverSocket.constructor(modem, port)
     end
 
     local address = table.remove(server.connectionRequests, 1)
-    local socket =  connection.constructor(server.modemAddress, server.port, address)
+    local socket = connection.constructor(server.modemAddress, server.port, address)
     local responsePacket = _packet.create(-1, _packet.type.CONNECT)
     socket.sendRaw(responsePacket)
     socket.active = true
+    server._addActiveConnection(socket, address, server.port) --todo port negotiation
     return socket
   end
 
@@ -53,18 +65,21 @@ function serverSocket.constructor(modem, port)
       os.sleep(0.05)
     end
     local address = table.remove(server.connectionRequests, 1)
-    local socket =  connection.constructor(server.modemAddress, server.port, address)
+    local socket = connection.constructor(server.modemAddress, server.port, address)
     local responsePacket = _packet.create(-1, _packet.type.CONNECT)
     socket.sendRaw(responsePacket)
     socket.active = true
+    server._addActiveConnection(socket, address, server.port) --todo port negotiation
     return socket
   end
 
   function server.close()
     server.modem.close(server.port)
     event.ignore('modem_message', server.packetEvent)
-    for socket in pairs(server.activeConnections) do
-      socket.close()
+    for _, clientSockets in pairs(server.activeConnections) do
+      for socket in pairs(clientSockets) do
+        socket.close()
+      end
     end
   end
   --
