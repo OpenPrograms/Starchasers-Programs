@@ -216,6 +216,9 @@ function connection.constructor(networkCard, port, address)
   end
 
   function socket._processAck(packet)
+    if not socket.sendMeta[packet.id] then
+      return
+    end
     event.cancel(socket.sendMeta[packet.id].timerId)
     socket.sendMeta[packet.id] = nil
     if #socket.sendQueue > 0 then
@@ -258,10 +261,13 @@ function connection.constructor(networkCard, port, address)
   event.listen('modem_message', socket.receiveEvent)
   socket.keepAliveTimer = event.timer(KEEP_ALIVE_INTERVAL, socket._keepAlive, math.huge)
 
-  socket.close = function()
+  function socket.close()
     local packet = _packet.create(-1, _packet.type.DISCONNECT)
     socket.sendRaw(packet)
+    socket.closeSilently()
+  end
 
+  function socket.closeSilently()
     event.ignore('modem_message', socket.receiveEvent)
     if socket.keepAliveTimer then
       event.cancel(socket.keepAliveTimer)
