@@ -424,14 +424,11 @@ local result
 local program
 debug('Phase 2 started')
 local hostname, port = table.unpack(split(component.proxy(component.list('eeprom')()).getData(), ':'))
-debug('hostname: ' .. hostname)
-debug('port: ' .. port)
 if not hostname or not port then
   error('Phase 2: Hostname and port not provided')
 end
 local address
-
-
+local nextConnectionTry = 0
 
 local function loop()
   if not address then
@@ -444,15 +441,15 @@ local function loop()
     end
   end
 
-  if (not socket or not socket.active) then
+  if (not socket or not socket.active) and nextConnectionTry < uptime() then
     socket = connection.constructor(tonumber(port), address)
-    if not socket then
-      debug('Phase 2: no connectionqwe')
-      env.sleep(10)
-      return
-    end
+    nextConnectionTry = uptime() + 10
   end
-  result = socket.receive()
+
+  if socket then
+    result = socket.receive()
+  end
+
   if result then
     local compiled = load(result)
     if not compiled then
