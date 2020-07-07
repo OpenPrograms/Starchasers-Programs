@@ -43,7 +43,7 @@ local function loop()
 
       local res, err = pcall(loaded)
       if not res then
-        modem.broadcast(DEBUG_PORT, 'Phase1: Boot script run error' .. err)
+        debug('Phase1: Boot script run error' .. err)
       end
     end
   end
